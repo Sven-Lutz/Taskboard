@@ -1,3 +1,11 @@
+import TaskTableFilters from '@/components/table/TaskTableFilters'
+import TaskTable from '@/components/table/TaskTable'
+
 export default function TablePage() {
-  return <h1 className="text-2xl font-semibold p-8">Table</h1>;
+  return (
+    <div className="p-6">
+      <TaskTableFilters />
+      <TaskTable />
+    </div>
+  )
 }

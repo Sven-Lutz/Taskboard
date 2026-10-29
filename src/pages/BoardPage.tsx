@@ -1,3 +1,5 @@
+import KanbanBoard from '@/components/board/KanbanBoard'
+
 export default function BoardPage() {
-  return <h1 className="text-2xl font-semibold p-8">Board</h1>;
+  return <KanbanBoard />
 }
