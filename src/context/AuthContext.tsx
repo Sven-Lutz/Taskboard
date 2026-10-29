@@ -21,8 +21,18 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const DEV_MOCK_USER: AuthUser | null =
+  import.meta.env.DEV && import.meta.env.VITE_DEV_MOCK_USER === "true"
+    ? {
+        login: import.meta.env.VITE_GITHUB_OWNER ?? "dev-user",
+        avatarUrl: `https://github.com/${import.meta.env.VITE_GITHUB_OWNER ?? "ghost"}.png?size=32`,
+        token: "dev-mock-token",
+      }
+    : null;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
+    if (DEV_MOCK_USER) return DEV_MOCK_USER;
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     try {
