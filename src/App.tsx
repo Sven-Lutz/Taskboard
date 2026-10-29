@@ -9,7 +9,7 @@ import LoginPage from '@/pages/LoginPage'
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/Taskboard">
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
