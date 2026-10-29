@@ -9,14 +9,11 @@ import type { ReactNode } from "react";
 import type { AuthUser } from "@/types/auth";
 
 const STORAGE_KEY = "taskboard_auth";
-const CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID as string;
 
 interface AuthContextValue {
   user: AuthUser | null;
-  signIn: () => void;
-  signOut: () => void;
-  /** Called by AuthCallbackPage after the OAuth exchange is complete. */
   setUser: (user: AuthUser) => void;
+  signOut: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -31,7 +28,7 @@ const DEV_MOCK_USER: AuthUser | null =
     : null;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => {
+  const [user, setUserState] = useState<AuthUser | null>(() => {
     if (DEV_MOCK_USER) return DEV_MOCK_USER;
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
@@ -50,21 +47,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  const signIn = useCallback(() => {
-    const params = new URLSearchParams({
-      client_id: CLIENT_ID,
-      scope: "repo",
-    });
-    window.location.href = `https://github.com/login/oauth/authorize?${params.toString()}`;
-  }, []);
+  const setUser = useCallback((u: AuthUser) => setUserState(u), []);
 
   const signOut = useCallback(() => {
     sessionStorage.removeItem(STORAGE_KEY);
-    setUser(null);
+    setUserState(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, signIn, signOut, setUser }}>
+    <AuthContext.Provider value={{ user, setUser, signOut }}>
       {children}
     </AuthContext.Provider>
   );

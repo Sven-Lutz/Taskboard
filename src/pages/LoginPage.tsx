@@ -1,4 +1,10 @@
+import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { requestDeviceCode, pollForToken } from "@/lib/deviceFlow";
+import { fetchAuthenticatedUser } from "@/lib/github";
+
+type Step = "idle" | "waiting" | "polling" | "error";
 
 function GitHubIcon() {
   return (
@@ -15,10 +21,54 @@ function GitHubIcon() {
 }
 
 export default function LoginPage() {
-  const { signIn } = useAuth();
+  const { setUser } = useAuth();
+  const navigate = useNavigate();
+  const [step, setStep] = useState<Step>("idle");
+  const [userCode, setUserCode] = useState<string>("");
+  const [verificationUri, setVerificationUri] = useState<string>(
+    "https://github.com/login/device"
+  );
+  const [error, setError] = useState<string>("");
+  const abortRef = useRef<AbortController | null>(null);
+
+  async function startDeviceFlow() {
+    setError("");
+    setStep("waiting");
+    try {
+      const deviceData = await requestDeviceCode();
+      setUserCode(deviceData.user_code);
+      setVerificationUri(deviceData.verification_uri);
+      window.open(deviceData.verification_uri, "_blank", "noopener,noreferrer");
+      setStep("polling");
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const token = await pollForToken(
+        deviceData.device_code,
+        deviceData.interval,
+        controller.signal
+      );
+
+      const user = await fetchAuthenticatedUser(token);
+      setUser(user);
+      navigate("/board", { replace: true });
+    } catch (err) {
+      if ((err as Error).message === "Polling aborted") return;
+      setError((err as Error).message ?? "Authentication failed");
+      setStep("error");
+    }
+  }
+
+  function cancel() {
+    abortRef.current?.abort();
+    setStep("idle");
+    setUserCode("");
+    setError("");
+  }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background gap-8">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background gap-8 px-4">
       <div className="flex flex-col items-center gap-2">
         <span className="text-3xl font-bold tracking-tight text-slate-900">
           Taskboard
@@ -28,13 +78,62 @@ export default function LoginPage() {
         </p>
       </div>
 
-      <button
-        onClick={signIn}
-        className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 transition-colors"
-      >
-        <GitHubIcon />
-        Sign in with GitHub
-      </button>
+      {step === "idle" && (
+        <button
+          onClick={startDeviceFlow}
+          className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 transition-colors"
+        >
+          <GitHubIcon />
+          Sign in with GitHub
+        </button>
+      )}
+
+      {(step === "waiting" || step === "polling") && (
+        <div className="flex flex-col items-center gap-4 rounded-lg border border-slate-200 bg-slate-50 p-6 w-full max-w-sm text-center">
+          {step === "waiting" ? (
+            <p className="text-sm text-slate-600">Requesting code…</p>
+          ) : (
+            <>
+              <p className="text-sm text-slate-600">
+                GitHub has opened in a new tab. Enter this code there:
+              </p>
+              <div className="font-mono text-2xl font-bold tracking-widest text-slate-900 bg-white border border-slate-200 rounded-md px-6 py-3">
+                {userCode}
+              </div>
+              <a
+                href={verificationUri}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-slate-500 underline underline-offset-2"
+              >
+                {verificationUri}
+              </a>
+              <p className="text-xs text-slate-400">
+                Waiting for you to authorise on GitHub…
+              </p>
+            </>
+          )}
+          <button
+            onClick={cancel}
+            className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {step === "error" && (
+        <div className="flex flex-col items-center gap-3 text-center">
+          <p className="text-sm text-red-600">{error}</p>
+          <button
+            onClick={startDeviceFlow}
+            className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700 transition-colors"
+          >
+            <GitHubIcon />
+            Try again
+          </button>
+        </div>
+      )}
     </div>
   );
 }
